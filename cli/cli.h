@@ -1,4 +1,5 @@
-/*! @file Routines for command line interface and path file reading
+/*! @file cli.h
+ * Routines for command line interface and path file reading
  * */
 #pragma once
 

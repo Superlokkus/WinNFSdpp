@@ -9,6 +9,8 @@ CppApplication {
 
     files: [
         "cli.h",
+        "file_change_notifier.cpp",
+        "file_change_notifier.h",
         "main.cpp",
     ]
     Depends { name: "cpp" }
