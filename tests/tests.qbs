@@ -5,6 +5,7 @@ Project {
 
     references: [
         "container",
-        "winfs"
+        "winfs",
+        "file_change"
     ]
 }
