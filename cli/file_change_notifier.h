@@ -4,6 +4,7 @@
 #pragma once
 
 #include <functional>
+#include <string>
 #include <Windows.h>
 
 /*! @brief Class that uses a (hopefully)
@@ -14,9 +15,9 @@
 class file_change_notifier
 {
 public:
-    using full_path_t = std::string;
-    using file_name_t = std::string;
-    using directory_path_t = std::string;
+    using full_path_t = std::wstring;
+    using file_name_t = std::wstring;
+    using directory_path_t = std::wstring;
 
     /*! @brief Events can be combined via the flag operations
      * @attention Be aware that due the nature of the APIs, this is intended
@@ -63,9 +64,11 @@ public:
                          change_event events);
 
 private:
-    using directory_path_t_ = LPCTSTR;
-    using file_name_t_ = WCHAR;
+    using internal_path_t = std::basic_string<TCHAR>;
+    internal_path_t directory_path_;
+    internal_path_t file_name_;
 
-    directory_path_t_ directory_path_;
-    file_name_t_ file_name_;
+    void split_path(full_path_t file_path,
+                    internal_path_t& directory_path,
+                    internal_path_t& file_name);
 };
