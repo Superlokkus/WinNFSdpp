@@ -64,7 +64,7 @@ public:
                          change_event events);
 
 private:
-    using internal_path_t = std::basic_string<TCHAR>;
+    using internal_path_t = std::wstring;
     internal_path_t directory_path_;
     internal_path_t file_name_;
 
