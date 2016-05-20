@@ -5,12 +5,17 @@
 
 #include <functional>
 #include <string>
+#include <atomic>
+#include <future>
 #include <Windows.h>
 
 /*! @brief Class that uses a (hopefully)
  *  native API to watch a file for changes and call a user supplied callback
- *  @notice The service can be started and stopped via the applicable functions
- *  (and will also be stopped when destructed if not already done of course)
+ *  The callback service can be started/stopped via the applicable functions
+ *  Also the callback will only be called in 1 thread by this class
+ *
+ * @TODO Change the callback function to static an just give the atomic and a copy
+ * of the callback function, to make race conditions impossible
  */
 class file_change_notifier
 {
@@ -23,7 +28,7 @@ public:
      * @attention Be aware that due the nature of the APIs, this is intended
      * for specifying the events you AT LEAST want a notification. Be ready to
      * get notifications even when nothing changed or more than specified. */
-    enum struct change_event : unsigned {
+    enum change_event : unsigned {
         file_name = 0x1u, ///<  Includes renaming, creating, or deleting a file
         file_attributes = 0x2u, //< Includes timestamp, security attributes and so on
         file_size = 0x4u,
@@ -44,9 +49,10 @@ public:
                                change_event::all)
     {}
 
-    /*! @brief Starts the notification service*/
+    /*! @brief Starts/Resume to call the callback for any change since constructing*/
     void start_watching();
 
+    /*! @brief Stops the issuing of callbacks for now*/
     void stop_watching() noexcept;
 
     ~file_change_notifier() {
@@ -56,8 +62,9 @@ public:
     /*! @brief Creates a new notifier which will, after being started, call the supplied
      * callback everytime at least one of the spcified events take place
      * @param file_path Full path to the be watched file
-     * @param callback Callback which will be called with the files path and
-     * the assumed cause of notification
+     * @param callback Callback which will be called with a (!) usable path to the file
+     * @warning The path given to the callback might differ from the one supplied to the
+     * constructor of this class, but refers still to the same file.
     */
     file_change_notifier(full_path_t file_path,
                          std::function<void(full_path_t, change_event)> callback,
@@ -67,8 +74,17 @@ private:
     using internal_path_t = std::wstring;
     internal_path_t directory_path_;
     internal_path_t file_name_;
+    std::function<void(full_path_t, change_event)> callback_;
+    change_event events_;
+    HANDLE notification_handle_;
+    std::atomic<bool> continue_waiting_;
+    std::future<void> waiting_future;
 
     void split_path(full_path_t file_path,
                     internal_path_t& directory_path,
                     internal_path_t& file_name);
+    void waiting_function();
 };
+
+
+

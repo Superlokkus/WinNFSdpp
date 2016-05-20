@@ -7,13 +7,39 @@
 file_change_notifier::
 file_change_notifier(full_path_t file_path,
                      std::function<void(full_path_t, change_event)> callback,
-                     change_event events){
+                     change_event events) :
+    callback_(callback), events_(events), notification_handle_(INVALID_HANDLE_VALUE), continue_waiting_(false)
+{
     split_path(file_path,this->directory_path_,this->file_name_);
 
+    DWORD dwNotifyFiler = 0;
+    if (this->events_ ==  change_event::all){
+        dwNotifyFiler = -1;
+    } else if(events_ & change_event::file_attributes){
+        dwNotifyFiler |= FILE_NOTIFY_CHANGE_LAST_WRITE;
+        dwNotifyFiler |= FILE_NOTIFY_CHANGE_SECURITY;
+        dwNotifyFiler |= FILE_NOTIFY_CHANGE_ATTRIBUTES;
+    } else if(events_ & change_event::file_name) {
+        dwNotifyFiler |= FILE_NOTIFY_CHANGE_FILE_NAME;
+    } else if(events_ & change_event::file_size) {
+        dwNotifyFiler |= FILE_NOTIFY_CHANGE_SIZE;
+    }
+
+    this->notification_handle_ = FindFirstChangeNotification(this->directory_path_.c_str(),false,dwNotifyFiler);
+    if (notification_handle_ == INVALID_HANDLE_VALUE) {
+        throw std::runtime_error("FindFirstChangeNotification failed with " + GetLastError());
+    }
 }
 
 void file_change_notifier::stop_watching() noexcept {
-
+    if (!this->continue_waiting_){
+        return;
+    }
+    this->continue_waiting_ = false;
+    try{
+    this->waiting_future.get();}
+    catch (...) {}
+    FindCloseChangeNotification(this->notification_handle_);
 }
 
 void file_change_notifier::split_path(full_path_t full_path,
@@ -41,5 +67,32 @@ void file_change_notifier::split_path(full_path_t full_path,
 }
 
 void file_change_notifier::start_watching(){
+    if (this->continue_waiting_){
+        return;
+    }
+    this->continue_waiting_ = true;
+    this->waiting_future = std::async(std::launch::async,&file_change_notifier::waiting_function,this);
 
 }
+
+void file_change_notifier::waiting_function(){
+    while (this->continue_waiting_){
+        if (!FindNextChangeNotification(this->notification_handle_)){
+            throw std::runtime_error("FindNextChangeNotification failed with " + GetLastError());
+        }
+        DWORD wait_return = WaitForSingleObject(this->notification_handle_,1000);
+        switch (wait_return) {
+        case WAIT_OBJECT_0:
+            this->callback_(this->directory_path_ + this->file_name_,this->events_);
+            break;
+        case WAIT_TIMEOUT:
+            break;
+        default:
+            throw std::runtime_error("WaitForSingleObject returned unexcpected: " + GetLastError());
+            break;
+        }
+    }
+}
+
+
+
