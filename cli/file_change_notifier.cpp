@@ -3,6 +3,7 @@
 #include "file_change_notifier.h"
 
 #include <algorithm>
+#include <Windows.h>
 
 file_change_notifier::
 file_change_notifier(full_path_t file_path,
@@ -13,19 +14,13 @@ file_change_notifier(full_path_t file_path,
     split_path(file_path,this->directory_path_,this->file_name_);
 
     DWORD dwNotifyFiler = 0;
-    if (this->events_ ==  change_event::all){
-        dwNotifyFiler |= FILE_NOTIFY_CHANGE_FILE_NAME
-                | FILE_NOTIFY_CHANGE_ATTRIBUTES
-                | FILE_NOTIFY_CHANGE_SIZE
-                | FILE_NOTIFY_CHANGE_LAST_WRITE
-                | FILE_NOTIFY_CHANGE_SECURITY;
-    } else if(events_ & change_event::file_attributes){
+    if(events_ & change_event::file_attributes){
         dwNotifyFiler |= FILE_NOTIFY_CHANGE_LAST_WRITE;
         dwNotifyFiler |= FILE_NOTIFY_CHANGE_SECURITY;
         dwNotifyFiler |= FILE_NOTIFY_CHANGE_ATTRIBUTES;
-    } else if(events_ & change_event::file_name) {
+    } if(events_ & change_event::file_name) {
         dwNotifyFiler |= FILE_NOTIFY_CHANGE_FILE_NAME;
-    } else if(events_ & change_event::file_size) {
+    } if(events_ & change_event::file_size) {
         dwNotifyFiler |= FILE_NOTIFY_CHANGE_SIZE;
     }
 
@@ -35,7 +30,7 @@ file_change_notifier(full_path_t file_path,
     }
 }
 
-void file_change_notifier::stop_watching() noexcept {
+file_change_notifier::~file_change_notifier()  {
     if (!this->continue_waiting_){
         return;
     }
@@ -94,10 +89,29 @@ void file_change_notifier::waiting_function(){
         case WAIT_TIMEOUT:
             break;
         default:
-            throw win32_exception("WaitForSingleObject returned unexcpected: ", GetLastError());
+            throw win32_exception("WaitForSingleObject returned unexpected: ", GetLastError());
             break;
         }
     }
+}
+
+file_change_notifier::win32_exception::win32_exception(std::string msg, std::uint32_t get_last_error_code) :
+    std::runtime_error(""), final_msg(msg), error_code(get_last_error_code)
+{
+    LPSTR tmp = NULL;
+    auto format_message_return = FormatMessageA(
+                FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS |FORMAT_MESSAGE_ALLOCATE_BUFFER,
+                NULL,
+                this->error_code,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                (LPSTR)&tmp,
+                0,
+                NULL
+                );
+    this->final_msg += ": Code: \"" +
+            std::to_string(this->error_code) + "\""
+            + " = \"" + std::string(tmp) + "\"";
+    LocalFree(tmp);
 }
 
 

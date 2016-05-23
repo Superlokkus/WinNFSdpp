@@ -7,12 +7,12 @@
 #include <string>
 #include <atomic>
 #include <future>
-#include <system_error>
-#include <Windows.h>
+#include <cstdint>
+
 
 /*! @brief Class that uses a (hopefully)
  *  native API to watch a file for changes and call a user supplied callback
- *  The callback service can be started/stopped via the applicable functions
+ *  The callback service can be started via the applicable function
  *  Also the callback will only be called in 1 thread by this class
  *
  * @TODO Change the callback function to static an just give the atomic and a copy
@@ -33,7 +33,7 @@ public:
         file_name = 0x1u, ///<  Includes renaming, creating, or deleting a file
         file_attributes = 0x2u, //< Includes timestamp, security attributes and so on
         file_size = 0x4u,
-        all = 0x0u,
+        all = UINT_MAX,
     };
 
     file_change_notifier() = delete;
@@ -50,15 +50,10 @@ public:
                                change_event::all)
     {}
 
-    /*! @brief Starts/Resume to call the callback for any change since constructing*/
+    /*! @brief Starts to call the callback for any change since constructing*/
     void start_watching();
 
-    /*! @brief Stops the issuing of callbacks for now*/
-    void stop_watching() noexcept;
-
-    ~file_change_notifier() {
-        this->stop_watching();
-    }
+    ~file_change_notifier();
 
     /*! @brief Creates a new notifier which will, after being started, call the supplied
      * callback everytime at least one of the spcified events take place
@@ -77,37 +72,20 @@ public:
         /*! @param msg User supplied message which will lead the full exception text
          * @param get_last_error_code Error code from GetLastError
          */
-        explicit win32_exception(std::string msg, DWORD get_last_error_code) :
-            std::runtime_error(""), final_msg(msg), error_code(get_last_error_code)
-        {
-            LPSTR tmp = NULL;
-            auto format_message_return = FormatMessageA(
-                        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS |FORMAT_MESSAGE_ALLOCATE_BUFFER,
-                        NULL,
-                        this->error_code,
-                        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                        (LPSTR)&tmp,
-                        0,
-                        NULL
-                        );
-            this->final_msg += ": Code: \"" +
-                    std::to_string(this->error_code) + "\""
-                    + " = \"" + std::string(tmp) + "\"";
-            LocalFree(tmp);
-        }
+        explicit win32_exception(std::string msg, std::uint32_t get_last_error_code);
         /*! @return The user supplied message + the error code + a string description of the error code
          * */
         const char* what() const override {
             return final_msg.c_str();
         }
         /*! @returns The Win32 specific error code*/
-        DWORD code () const {
+        uint32_t code () const {
             return this->error_code;
         }
         virtual ~win32_exception(){}
     private:
         std::string final_msg;
-        DWORD error_code;
+        uint32_t error_code;
     };
 
 private:
@@ -116,7 +94,7 @@ private:
     internal_path_t file_name_;
     std::function<void(full_path_t, change_event)> callback_;
     change_event events_;
-    HANDLE notification_handle_;
+    void* notification_handle_;
     std::atomic<bool> continue_waiting_;
     std::future<void> waiting_future;
 
