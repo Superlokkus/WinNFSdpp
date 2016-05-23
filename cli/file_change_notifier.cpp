@@ -14,7 +14,11 @@ file_change_notifier(full_path_t file_path,
 
     DWORD dwNotifyFiler = 0;
     if (this->events_ ==  change_event::all){
-        dwNotifyFiler = -1;
+        dwNotifyFiler |= FILE_NOTIFY_CHANGE_FILE_NAME
+                | FILE_NOTIFY_CHANGE_ATTRIBUTES
+                | FILE_NOTIFY_CHANGE_SIZE
+                | FILE_NOTIFY_CHANGE_LAST_WRITE
+                | FILE_NOTIFY_CHANGE_SECURITY;
     } else if(events_ & change_event::file_attributes){
         dwNotifyFiler |= FILE_NOTIFY_CHANGE_LAST_WRITE;
         dwNotifyFiler |= FILE_NOTIFY_CHANGE_SECURITY;
