@@ -27,7 +27,7 @@ file_change_notifier(full_path_t file_path,
 
     this->notification_handle_ = FindFirstChangeNotification(this->directory_path_.c_str(),false,dwNotifyFiler);
     if (notification_handle_ == INVALID_HANDLE_VALUE) {
-        throw std::runtime_error("FindFirstChangeNotification failed with " + GetLastError());
+        throw win32_exception("FindFirstChangeNotification failed", GetLastError());
     }
 }
 
@@ -37,7 +37,7 @@ void file_change_notifier::stop_watching() noexcept {
     }
     this->continue_waiting_ = false;
     try{
-    this->waiting_future.get();}
+        this->waiting_future.get();}
     catch (...) {}
     FindCloseChangeNotification(this->notification_handle_);
 }
@@ -60,7 +60,8 @@ void file_change_notifier::split_path(full_path_t full_path,
         directory_path.resize(return_value, 0);
         call_GetFullPathNameW();
     } else if (return_value == 0){
-        throw std::runtime_error("Call of GetFullPathNameW failed with " + GetLastError());
+        throw win32_exception("Call of GetFullPathNameW failed with \"",
+                              GetLastError());
     }
     file_name = file_namepart_ptr;
     directory_path.resize(return_value - file_name.size());
@@ -78,7 +79,8 @@ void file_change_notifier::start_watching(){
 void file_change_notifier::waiting_function(){
     while (this->continue_waiting_){
         if (!FindNextChangeNotification(this->notification_handle_)){
-            throw std::runtime_error("FindNextChangeNotification failed with " + GetLastError());
+            throw win32_exception("FindNextChangeNotification failed with \"",
+                                  GetLastError());
         }
         DWORD wait_return = WaitForSingleObject(this->notification_handle_,1000);
         switch (wait_return) {
@@ -88,7 +90,7 @@ void file_change_notifier::waiting_function(){
         case WAIT_TIMEOUT:
             break;
         default:
-            throw std::runtime_error("WaitForSingleObject returned unexcpected: " + GetLastError());
+            throw win32_exception("WaitForSingleObject returned unexcpected: ", GetLastError());
             break;
         }
     }
